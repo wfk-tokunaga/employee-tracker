@@ -2,10 +2,24 @@ const sql = require('mysql2');
 const inquirer = require('inquirer');
 const express = require('express');
 
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 3005;
 
 const app = express();
 
-app.listen(PORT, () => {
-    console.log(`Now listening on PORT ${PORT}`);
+const db = require('./db/connection');
+
+const departmentRoutes = require('./routes/apiRoutes/departmentRoutes');
+app.use('/api', departmentRoutes);
+
+// Default response for any other request (Not Found)
+app.use((req, res) => {
+    res.status(404).end();
+});
+
+db.connect(err => {
+    if (err) throw err;
+    console.log('Database connected');
+    app.listen(PORT, () => {
+        console.log(`Now listening on PORT ${PORT}`);
+    })
 })

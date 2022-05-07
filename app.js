@@ -1,41 +1,30 @@
-const sql = require('mysql2');
 const inquirer = require('inquirer');
 
 const db = require('./db/connection');
 
-var departments = [];
+// const { getAllDepartments, promptDepartment } = require('./utils/departments');
+
+// var departments = [];
 var roles = [];
 
+// Would it be possible to have all the prompts in one question prompt with a bunch of whens?
+// Afterwards, it'll return the array of answers and I can access them for the next thingy
+
 const initialPrompt = [{
-        type: 'list',
-        name: 'initialAction',
-        message: 'What would you like to do?',
-        choices: [
-            'View all departments',
-            'View all roles',
-            // 'View all employees',
-            'Add a department',
-            'Add a role',
-            // 'Add an employee',
-            // 'Update an employee role'
-        ]
-    },
-    {
-        type: 'input',
-        name: 'newDepartment',
-        message: 'What\'s the name of the new department?',
-        when: (answers) => answers.initialAction === 'Add a department',
-        validate: (name) => {
-            // Want to add a check to see if a department has been added already
-            // Maybe check outside of inquirer prompt?
-            if (!name) {
-                console.log("\nMust enter a name!");
-                return false;
-            }
-            return true;
-        }
-    }
-];
+    type: 'list',
+    name: 'initialAction',
+    message: 'What would you like to do?',
+    choices: [
+        'View all departments',
+        'View all roles',
+        // 'View all employees',
+        'Add a department',
+        'Add a role',
+        // 'Add an employee',
+        // 'Update an employee role',
+        'Exit'
+    ]
+}];
 
 const addDepartmentPrompt = [{
     type: 'input',
@@ -66,51 +55,35 @@ const addDepartmentPrompt = [{
     }
 }]
 
+// ========== DEPARTMENTS ==========
+
 const getAllDepartments = () => {
-    console.log('\nin getAllDepartments');
     const sql = `SELECT * FROM departments`;
     db.query(sql, (err, rows) => {
         if (err) throw err;
         console.table(rows);
-        departments = rows.map(row => row.name);
-        console.log('\n\n');
-    });
-}
-
-const updateDepartmentsArr = () => {
-    const sql = `SELECT name FROM departments`;
-    db.query(sql, (err, rows) => {
-        if (err) throw err;
-        // Gonna have to change this later
-        departments = rows.map(row => row.name);
+        promptUser();
     });
 }
 
 const insertDeptartment = newDepartment => {
     // DOES THIS RETURN A PROMISE??
-    console.log("\nwhere is my new dept");
     const sql = `INSERT INTO departments (name) VALUES(?)`;
     db.query(sql, newDepartment, (err, result) => {
         if (err) throw err;
+        console.log(`Inserting ${newDepartment} into departments`);
+        getAllDepartments();
     });
     // updateDepartmentArr();
-}
+};
 
 const promptDepartment = () => {
-    // NEED TO RETURN THE PROMISE
-    // console.log("\nTEST");
-    return inquirer
+    inquirer
         .prompt(addDepartmentPrompt)
-        .then(answers => {
-            // Is it because this isn't returning a promise?
-            console.log(answers);
-            // console.log('\nDo we get in here');
-            insertDeptartment(answers.newDepartment);
-        });
-}
+        .then(answer => insertDeptartment(answer.newDepartment));
+};
 
-// This works as it should, just not within the switch statement
-// promptDepartment().then(getAllDepartments);
+// ========== ROLES ==========
 
 const addRolePrompt = [{
         type: 'input',
@@ -135,24 +108,15 @@ const addRolePrompt = [{
             }
             return true;
         },
-    },
-    {
-        type: 'list',
-        name: 'department',
-        message: 'Which department is the role part of?',
-        // HOW CAN I ACCESS THE CURRENT LIST OF DEPARTMENTS WITHIN HERE?
-        // Ideas include having a global variable that is updated whenever the roles change
-        // Having a function that returns it
-        choices: [1, 2, 3],
     }
 ];
 
 const getAllRoles = () => {
-    console.log('\nin getAllRoles');
     const sql = `SELECT * FROM roles`;
     db.query(sql, (err, rows) => {
         if (err) throw err;
         console.table(rows);
+        promptUser();
     });
 }
 
@@ -160,7 +124,7 @@ const insertRole = (params) => {
     const sql = `INSERT INTO roles (title, salary, department_id) VALUES (?,?,?)`;
     db.query(sql, params, (err, row) => {
         if (err) throw err;
-        console.log(row.affectedRows);
+        getAllRoles();
     })
 }
 
@@ -168,27 +132,31 @@ const promptRole = () => {
     return inquirer
         .prompt(addRolePrompt)
         .then(answers => {
-            console.log(`Adding ${answers} to roles`);
-            insertRole([answers.title, answers.salary, answers.department]);
+            const params = [answers.title, answers.salary];
+            const sql = `SELECT name, id FROM departments`;
+            db.query(sql, (err, data) => {
+                    if (err) throw err;
+                    // This feels like magic
+                    const depts = data.map(({ name, id }) => ({ name: name, value: id }));
+                    inquirer.prompt([{
+                            type: 'list',
+                            name: 'department',
+                            message: 'Which department does this role belong to?',
+                            choices: depts,
+                        }])
+                        .then(({ department }) => {
+                            params.push(department);
+                            insertRole(params);
+                        });
+                })
+                // insertRole([answers.title, answers.salary]);
         })
 }
 
-promptRole().then(getAllRoles);
-
-const updateRolesArr = () => {
-    const sql = `SELECT * FROM roles`;
-    db.query(sql, (err, rows) => {
-        if (err) throw err;
-        roles = rows;
-    });
-}
-
-// promptRole()
-// .then(getAllRoles).then(updateRolesArr).then(() => console.log(roles));
 
 // Get initial action, returns a promise
 const promptUser = () => {
-    return inquirer
+    inquirer
         .prompt(initialPrompt)
         .then(answer => {
             //parse answer
@@ -212,12 +180,13 @@ const promptUser = () => {
                     break;
                 case 'Update an employee role':
                     break;
+                case 'Exit':
+                    db.end();
             }
-            promptUser();
         });
 }
 
-// promptUser();
+promptUser();
 
 
 const queries = {

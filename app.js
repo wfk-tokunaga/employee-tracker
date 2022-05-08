@@ -1,14 +1,5 @@
 const inquirer = require('inquirer');
-
 const db = require('./db/connection');
-
-// const { getAllDepartments, promptDepartment } = require('./utils/departments');
-
-// var departments = [];
-var roles = [];
-
-// Would it be possible to have all the prompts in one question prompt with a bunch of whens?
-// Afterwards, it'll return the array of answers and I can access them for the next thingy
 
 const initialPrompt = [{
     type: 'list',
@@ -17,15 +8,16 @@ const initialPrompt = [{
     choices: [
         'View all departments',
         'View all roles',
-        // 'View all employees',
+        'View all employees',
         'Add a department',
         'Add a role',
-        // 'Add an employee',
-        // 'Update an employee role',
+        'Add an employee',
+        'Update an employee role',
         'Exit'
     ]
 }];
 
+// ========== DEPARTMENTS ==========
 const addDepartmentPrompt = [{
     type: 'input',
     name: 'newDepartment',
@@ -39,24 +31,8 @@ const addDepartmentPrompt = [{
         } else {
             return true;
         }
-        // console.log(departments);
-        // db.query('SELECT name FROM departments', (err, rows) => {
-        //     if (err) {
-        //         console.log('\n==========ERROR==========')
-        //         console.log(err.message)
-        //         return false;
-        //     }
-        //     // console.log(rows.map(row => row.name).includes(name));
-        //     else if (rows.map(row => row.name).includes(name)) {
-        //         console.log('\nDepartment already exists!')
-        //         return false;
-        //     }
-        // });
     }
 }]
-
-// ========== DEPARTMENTS ==========
-
 const getAllDepartments = () => {
     const sql = `SELECT * FROM departments`;
     db.query(sql, (err, rows) => {
@@ -65,9 +41,7 @@ const getAllDepartments = () => {
         promptUser();
     });
 }
-
 const insertDeptartment = newDepartment => {
-    // DOES THIS RETURN A PROMISE??
     const sql = `INSERT INTO departments (name) VALUES(?)`;
     db.query(sql, newDepartment, (err, result) => {
         if (err) throw err;
@@ -76,7 +50,6 @@ const insertDeptartment = newDepartment => {
     });
     // updateDepartmentArr();
 };
-
 const promptDepartment = () => {
     inquirer
         .prompt(addDepartmentPrompt)
@@ -84,7 +57,6 @@ const promptDepartment = () => {
 };
 
 // ========== ROLES ==========
-
 const addRolePrompt = [{
         type: 'input',
         name: 'title',
@@ -110,7 +82,6 @@ const addRolePrompt = [{
         },
     }
 ];
-
 const getAllRoles = () => {
     const sql = `SELECT * FROM roles`;
     db.query(sql, (err, rows) => {
@@ -119,7 +90,6 @@ const getAllRoles = () => {
         promptUser();
     });
 }
-
 const insertRole = (params) => {
     const sql = `INSERT INTO roles (title, salary, department_id) VALUES (?,?,?)`;
     db.query(sql, params, (err, row) => {
@@ -127,7 +97,6 @@ const insertRole = (params) => {
         getAllRoles();
     })
 }
-
 const promptRole = () => {
     return inquirer
         .prompt(addRolePrompt)
@@ -153,6 +122,117 @@ const promptRole = () => {
         })
 }
 
+// ========== EMPLOYEES ==========
+const addEmployeePrompt = [{
+        type: 'input',
+        name: 'first_name',
+        message: 'What\'s the first name of the new employee?',
+        validate: (first_name) => {
+            if (!first_name) {
+                console.log("\n\nMust enter a first name!");
+                return false;
+            }
+            return true;
+        }
+    },
+    {
+        type: 'input',
+        name: 'last_name',
+        message: 'What\'s the last name of the new employee?',
+        validate: (last_name) => {
+            if (!last_name) {
+                console.log("\n\nMust enter a last name!");
+                return false;
+            }
+            return true;
+        }
+    },
+];
+const updateRolePrompt = [{
+    type: 'list',
+    name: 'employee',
+    message: 'Which employee would you like to update?',
+    choices: [],
+}]
+const getAllEmployees = () => {
+    const sql = 'SELECT * FROM employees';
+    db.query(sql, (err, rows) => {
+        if (err) throw err;
+        console.table(rows);
+        promptUser();
+    });
+}
+const promptEmployee = () => {
+    inquirer.prompt(addEmployeePrompt)
+        .then(answers => {
+            const params = [answers.first_name, answers.last_name];
+            // Have the names, now need the role and the manager
+            const roleSql = `SELECT title, id FROM roles`;
+            db.query(roleSql, (err, data) => {
+                const roles = data.map(({ title, id }) => ({ name: title, value: id }));
+                inquirer.prompt({
+                    type: 'list',
+                    name: 'role',
+                    message: 'Select one of the following roles:',
+                    choices: roles
+                }).then(({ role }) => {
+                    params.push(role);
+                    const managerSql = `SELECT first_name, last_name, id FROM employees`;
+                    db.query(managerSql, (err, data) => {
+                        const managers = data.map(({ first_name, last_name, id }) => ({ name: first_name + " " + last_name, value: id }));
+                        inquirer.prompt({
+                            type: 'list',
+                            name: 'manager_id',
+                            message: 'Who is this employees manager?',
+                            choices: managers
+                        }).then(({ manager_id }) => {
+                            params.push(manager_id);
+                            const employeeSql = `INSERT INTO employees (first_name, last_name, role_id, manager_id) VALUES (?,?,?,?)`;
+                            db.query(employeeSql, params, (err, data) => {
+                                if (err) throw err;
+                                console.log(`Adding ${data.last_name} to employees.`);
+                                getAllEmployees();
+                            })
+                        })
+                    })
+                })
+            })
+        })
+}
+const updateEmployeeRole = () => {
+    // User inputs an existing employee then chooses a new role for them.
+    // Start by selecting all employees
+    updateRolePrompt[0].choices = [];
+    const employeeSql = `SELECT first_name, last_name, id FROM employees`;
+    db.query(employeeSql, (err, data) => {
+        const managers = data.map(({ first_name, last_name, id }) => ({ name: first_name + " " + last_name, value: id }));
+        updateRolePrompt[0].choices = managers;
+        inquirer.prompt(updateRolePrompt)
+            .then(({ employee }) => {
+                // List all roles
+                const roleSql = `SELECT title, id FROM roles`;
+                db.query(roleSql, (err, data) => {
+                    const roles = data.map(({ title, id }) => ({ name: title, value: id }));
+                    inquirer.prompt({
+                        type: 'list',
+                        name: 'role',
+                        message: 'Select the employee\'s new role:',
+                        choices: roles
+                    }).then(({ role }) => {
+                        // Update their existing role
+                        const updateSql = 'UPDATE employees SET role_id = ? WHERE id = ?';
+                        console.log(role, employee);
+                        const params = [role, employee];
+                        db.query(updateSql, params, (err, result) => {
+                            if (err) throw err;
+                            console.log('Updating new role!');
+                            getAllEmployees();
+                        })
+                    })
+                })
+            });
+    })
+}
 
 // Get initial action, returns a promise
 const promptUser = () => {
@@ -162,13 +242,13 @@ const promptUser = () => {
             //parse answer
             switch (answer.initialAction) {
                 case 'View all departments':
-                    console.log("\ngetAllDepartments() switch statement");
                     getAllDepartments();
                     break;
                 case 'View all roles':
                     getAllRoles();
                     break;
                 case 'View all employees':
+                    getAllEmployees();
                     break;
                 case 'Add a department':
                     promptDepartment();
@@ -177,8 +257,10 @@ const promptUser = () => {
                     promptRole();
                     break;
                 case 'Add an employee':
+                    promptEmployee();
                     break;
                 case 'Update an employee role':
+                    updateEmployeeRole();
                     break;
                 case 'Exit':
                     db.end();
@@ -189,60 +271,7 @@ const promptUser = () => {
 promptUser();
 
 
-const queries = {
-    viewDepartments: `SELECT * FROM departments`,
-    addDepartment: `INSERT INTO departments (name) VALUES (?)`
-}
-
-
-
-// db.query(sql, (err, rows) => {
-//     if (err) {
-//         console.log(err.message);
-//     }
-//     console.table(rows);
-// });
-
-// inquirer.prompt(initialPrompt)
-//     .then(response => {
-//         console.log(`response ` + JSON.stringify(response));
-//         var sql;
-//         var params = [];
-//         switch (response.initialAction) {
-//             case 'View all departments':
-//                 sql = queries.viewDepartments;
-//                 break;
-//             case 'Add a department':
-//                 sql = `INSERT INTO departments (name) VALUES (?)`;
-//                 params = [response.newDepartment];
-//                 break;
-//         }
-//         console.log(sql);
-//         console.log(params);
-//         if (params.length === 0) {
-//             console.log('\ntest with no params');
-//             // db.query(sql, (err, rows) => {
-//             //     if (err) {
-//             //         console.log(err.message);
-//             //     }
-//             //     console.table(rows);
-//             // });
-//             console.log(getAllDepartments());
-//         } else {
-//             console.log('\ntest WITH params');
-//             db.query(sql, params, (err, rows) => {
-//                 if (err) {
-//                     console.log(err.message);
-//                 }
-//                 console.table(rows.affectedRows);
-//             });
-//         }
-//     });
-
-// db.connect(err => {
-//     if (err) throw err;
-//     console.log('\nDatabase connected');
-//     app.listen(PORT, () => {
-//         console.log(`Now listening on PORT ${PORT}`);
-//     })
-// })
+// const queries = {
+//     viewDepartments: `SELECT * FROM departments`,
+//     addDepartment: `INSERT INTO departments (name) VALUES (?)`
+// }

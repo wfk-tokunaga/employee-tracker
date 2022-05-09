@@ -83,7 +83,9 @@ const addRolePrompt = [{
     }
 ];
 const getAllRoles = () => {
-    const sql = `SELECT * FROM roles`;
+    const sql = `SELECT r.title, r.salary, r.department_id AS department, d.name AS department
+            FROM roles AS r 
+            LEFT JOIN departments AS d ON r.department_id = d.id;`;
     db.query(sql, (err, rows) => {
         if (err) throw err;
         console.table(rows);
@@ -155,7 +157,12 @@ const updateRolePrompt = [{
     choices: [],
 }]
 const getAllEmployees = () => {
-    const sql = 'SELECT * FROM employees';
+    // const sql = 'SELECT * FROM employees';
+    const sql = `SELECT e.first_name, e.last_name, r.title AS role, d.name AS department, manager.last_name AS manager  
+            FROM employees AS e 
+            LEFT JOIN roles AS r ON e.role_id = r.id
+            LEFT JOIN employees AS manager ON e.manager_id = manager.id
+            LEFT JOIN departments AS d ON r.department_id = d.id;`;
     db.query(sql, (err, rows) => {
         if (err) throw err;
         console.table(rows);
@@ -269,9 +276,3 @@ const promptUser = () => {
 }
 
 promptUser();
-
-
-// const queries = {
-//     viewDepartments: `SELECT * FROM departments`,
-//     addDepartment: `INSERT INTO departments (name) VALUES (?)`
-// }
